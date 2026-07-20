@@ -183,6 +183,11 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
     private hexes: Hex[][] = [];
 
+    /**
+     * Triangular grid of lines linking cell centers, drawn in go board style.
+     */
+    private goGridGraphics: Graphics;
+
     private pixi: Application;
 
     /**
@@ -282,11 +287,59 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.gameContainer.addChild(
             this.createColoredSides(),
             this.createHexesContainer(),
+            this.goGridGraphics = new Graphics(),
             this.entityLayersContainer,
             this.coordsContainer = new Container(),
         );
 
         this.redrawCoords();
+        this.redrawGoGrid();
+    }
+
+    /**
+     * Draw the go-style triangular grid: a line between each pair of adjacent
+     * cell centers. Stones are then placed on the intersections (cell centers).
+     * Drawn only in 'go' board style, cleared otherwise.
+     */
+    private redrawGoGrid(): void
+    {
+        this.goGridGraphics.clear();
+
+        if (this.boardStyle !== 'go') {
+            return;
+        }
+
+        // Only 3 of the 6 hex neighbour directions, so each edge is drawn once
+        const directions = [
+            { dRow: 0, dCol: 1 },
+            { dRow: 1, dCol: 0 },
+            { dRow: 1, dCol: -1 },
+        ];
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                const from = Hex.coords(row, col);
+
+                for (const { dRow, dCol } of directions) {
+                    const nRow = row + dRow;
+                    const nCol = col + dCol;
+
+                    if (nRow < 0 || nRow >= this.boardsize || nCol < 0 || nCol >= this.boardsize) {
+                        continue;
+                    }
+
+                    const to = Hex.coords(nRow, nCol);
+
+                    this.goGridGraphics.moveTo(from.x, from.y);
+                    this.goGridGraphics.lineTo(to.x, to.y);
+                }
+            }
+        }
+
+        this.goGridGraphics.stroke({
+            color: this.theme.strokeColor,
+            width: Hex.GO_LINE_WIDTH,
+        });
     }
 
     private async doMount(element: HTMLElement): Promise<void>
@@ -400,6 +453,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         this.updateEntitiesTheme();
         this.redrawCoords();
+        this.redrawGoGrid();
     }
 
     private redrawAfterOrientationOrWrapperSizeChanged(): void
@@ -555,6 +609,8 @@ export default class GameView extends TypedEmitter<GameViewEvents>
                 this.hexes[row][col].setGoStyle(goStyle);
             }
         }
+
+        this.redrawGoGrid();
 
         // Re-render existing stones so they match the new style
         for (const [move, stone] of Object.entries(this.stones)) {

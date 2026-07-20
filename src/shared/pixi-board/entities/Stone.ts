@@ -57,8 +57,9 @@ export default class Stone extends BoardEntity
         ;
 
         if (this.goStyle) {
-            // A round disc slightly smaller than the cell, like a go stone
-            g.circle(0, 0, Hex.INNER_RADIUS * 0.82);
+            // A round disc sitting on the grid intersection, nearly touching
+            // its neighbours, like a go stone
+            g.circle(0, 0, Hex.INNER_RADIUS * 0.88);
             g.fill({ color, alpha });
 
             return g;

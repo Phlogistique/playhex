@@ -47,9 +47,9 @@ export default class Hex extends Container
     private cellShading: Graphics;
 
     /**
-     * Stroke width of the lattice line, in go style.
+     * Stroke width of the triangular grid lines, in go style.
      */
-    static readonly GO_LINE_WIDTH = Hex.RADIUS * 0.08;
+    static readonly GO_LINE_WIDTH = Hex.RADIUS * 0.06;
 
     constructor(
         private theme: Theme,
@@ -159,9 +159,11 @@ export default class Hex extends Container
     }
 
     /**
-     * Go-style look: a full hexagon filling the whole cell (so the board is
-     * contiguous), outlined by a thin line. Adjacent cells share their edges,
-     * so the outlines merge into a single hexagonal lattice, like a goban grid.
+     * Go-style look: a full hexagon filling the whole cell so the board is a
+     * uniform, contiguous surface (adjacent cells share the same color, so no
+     * cell outline is visible). The triangular grid of lines that links cell
+     * centers, and on whose intersections stones are placed, is drawn at the
+     * board level (see GameView), not per cell.
      */
     private redrawGoCell(): void
     {
@@ -173,13 +175,6 @@ export default class Hex extends Container
 
         this.cellBackgroundGraphics.poly(path);
         this.cellBackgroundGraphics.fill({ color: this.theme.colorEmpty });
-
-        this.cellBackgroundGraphics.poly(path);
-        this.cellBackgroundGraphics.stroke({
-            color: this.theme.strokeColor,
-            width: Hex.GO_LINE_WIDTH,
-            alignment: 0.5,
-        });
     }
 
     getGoStyle(): boolean
