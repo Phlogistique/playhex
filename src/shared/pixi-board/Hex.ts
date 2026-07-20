@@ -1,4 +1,4 @@
-import { Container, DestroyOptions, Graphics, PointData } from 'pixi.js';
+import { Container, DestroyOptions, Graphics, PointData, Polygon } from 'pixi.js';
 import { Theme } from './BoardTheme.js';
 import { BoardStyle } from './BoardStyle.js';
 
@@ -75,6 +75,17 @@ export default class Hex extends Container
         this.init();
 
         this.eventMode = 'static';
+
+        // Explicit hit area, so cell stays clickable
+        // even when nothing is drawn on it ("go" board style)
+        const hitAreaPath: number[] = [];
+
+        for (let i = 0; i < 6; ++i) {
+            const { x, y } = Hex.cornerCoords(i, Hex.RADIUS);
+            hitAreaPath.push(x, y);
+        }
+
+        this.hitArea = new Polygon(hitAreaPath);
     }
 
     private init(): void
@@ -116,17 +127,8 @@ export default class Hex extends Container
         this.cellBackgroundGraphics.clear();
 
         if (this.boardStyle === 'go') {
-            // Plain background patch, slightly overlapping neighbour cells
-            // so the whole board appears as a single filled surface.
-            const path: PointData[] = [];
-
-            for (let i = 0; i < 6; ++i) {
-                path.push(Hex.cornerCoords(i, Hex.OUTER_RADIUS));
-            }
-
-            this.cellBackgroundGraphics.poly(path);
-            this.cellBackgroundGraphics.fill({ color: this.theme.colorEmpty });
-
+            // No cell background: the board is transparent,
+            // only grid lines are shown, drawn at board level.
             this.redrawCellShading();
 
             return;

@@ -132,7 +132,8 @@ gameView.setOrientation(1.6);
 - Board style
 
 Board can be rendered with hexagonal cells (default),
-or as a go-style board: a triangular grid with round stones placed at intersections.
+or as a go-style board: a triangular grid with round black and white stones
+placed at intersections, and straight colored bands along the sides.
 
 ``` ts
 const gameView = new GameView(9, { boardStyle: 'go' });

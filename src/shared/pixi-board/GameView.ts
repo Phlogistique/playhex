@@ -548,6 +548,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             }
         }
 
+        this.redrawColoredSides();
         this.redrawGridLines();
         this.updateEntitiesBoardStyle();
     }
@@ -592,8 +593,9 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         }
 
         this.gridLinesGraphics.stroke({
-            color: this.theme.strokeColor,
-            width: Hex.RADIUS * Hex.PADDING * 2,
+            color: this.theme.textColor,
+            alpha: 0.5,
+            width: 1.5,
             cap: 'round',
         });
     }
@@ -750,6 +752,115 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         // Initialize both sides at class level to change them later (light on/off)
         this.sidesGraphics = [new Graphics(), new Graphics()];
 
+        // Add both sides into a single container
+        const sidesContainer = new Container();
+        sidesContainer.addChild(...this.sidesGraphics);
+
+        this.redrawColoredSides();
+
+        return sidesContainer;
+    }
+
+    private redrawColoredSides(): void
+    {
+        this.sidesGraphics[0].clear();
+        this.sidesGraphics[1].clear();
+
+        if (this.boardStyle === 'go') {
+            this.drawGoSides();
+        } else {
+            this.drawHexSides();
+        }
+    }
+
+    /**
+     * Go board style sides:
+     * straight bands along the 4 edges of the grid parallelogram.
+     */
+    private drawGoSides(): void
+    {
+        const lastI = this.boardsize - 1;
+
+        const corners: PointData[] = [
+            Hex.coords(0, 0),
+            Hex.coords(0, lastI),
+            Hex.coords(lastI, lastI),
+            Hex.coords(lastI, 0),
+        ];
+
+        const center: PointData = {
+            x: (corners[0].x + corners[2].x) / 2,
+            y: (corners[0].y + corners[2].y) / 2,
+        };
+
+        /**
+         * Distance between a grid border line and its colored band center line.
+         * Close enough to the grid to not overlap displayed coords.
+         */
+        const bandDistance = Hex.RADIUS * 0.8;
+
+        /**
+         * Thickness of a colored band
+         */
+        const bandWidth = Hex.RADIUS * 0.5;
+
+        /**
+         * Unit normal of edge from -> to, pointing away from board center
+         */
+        const outwardNormal = (from: PointData, to: PointData): PointData => {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const length = sqrt(dx * dx + dy * dy);
+            let nx = dy / length;
+            let ny = -dx / length;
+
+            const midX = (from.x + to.x) / 2 - center.x;
+            const midY = (from.y + to.y) / 2 - center.y;
+
+            if (nx * midX + ny * midY < 0) {
+                nx = -nx;
+                ny = -ny;
+            }
+
+            return { x: nx, y: ny };
+        };
+
+        // Offset each corner outward, along the miter of its 2 adjacent edges,
+        // so that adjacent bands exactly meet at corners
+        const miteredCorners = corners.map((corner, i) => {
+            const previous = corners[(i + 3) % 4];
+            const next = corners[(i + 1) % 4];
+
+            const n1 = outwardNormal(previous, corner);
+            const n2 = outwardNormal(corner, next);
+            const dot = n1.x * n2.x + n1.y * n2.y;
+
+            return {
+                x: corner.x + bandDistance * (n1.x + n2.x) / (1 + dot),
+                y: corner.y + bandDistance * (n1.y + n2.y) / (1 + dot),
+            };
+        });
+
+        // Sides: top and bottom for first player, right and left for second player
+        for (let i = 0; i < 4; ++i) {
+            const g = this.sidesGraphics[i % 2];
+            const from = miteredCorners[i];
+            const to = miteredCorners[(i + 1) % 4];
+
+            g.moveTo(from.x, from.y);
+            g.lineTo(to.x, to.y);
+        }
+
+        this.sidesGraphics[0].stroke({ color: this.theme.colorA, width: bandWidth, cap: 'round' });
+        this.sidesGraphics[1].stroke({ color: this.theme.colorB, width: bandWidth, cap: 'round' });
+    }
+
+    /**
+     * Default hex board style sides:
+     * colored borders following the hexagonal cells of the 4 board sides.
+     */
+    private drawHexSides(): void
+    {
         let g: Graphics;
         const to = (a: PointData, b: PointData = { x: 0, y: 0 }, c: PointData = { x: 0, y: 0 }) => g.lineTo(a.x + b.x + c.x, a.y + b.y + c.y);
         const m = (a: PointData, b: PointData = { x: 0, y: 0 }) => g.moveTo(a.x + b.x, a.y + b.y);
@@ -827,12 +938,6 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         to(boardMiddle);
 
         g.fill();
-
-        // Add both sides into a single container
-        const sidesContainer = new Container();
-        sidesContainer.addChild(...this.sidesGraphics);
-
-        return sidesContainer;
     }
 
     getDisplayCoords(): boolean
