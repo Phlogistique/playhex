@@ -1,5 +1,6 @@
 import { Container, DestroyOptions, Graphics, PointData } from 'pixi.js';
 import { Theme } from './BoardTheme.js';
+import { BoardStyle } from './BoardStyle.js';
 
 const { PI, cos, sin, sqrt } = Math;
 const SQRT3 = sqrt(3);
@@ -55,6 +56,13 @@ export default class Hex extends Container
          * 0.5 = half-shaded (i.e for tri color shading patterns)...
          */
         private shading: number = 0,
+
+        /**
+         * How to render this cell.
+         * `hex` shows a hexagonal cell with a border,
+         * `go` shows a plain background patch, grid lines are drawn at board level.
+         */
+        private boardStyle: BoardStyle = 'hex',
     ) {
         super();
 
@@ -94,7 +102,7 @@ export default class Hex extends Container
     {
         this.cellShading.clear();
 
-        this.cellShading.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
+        this.cellShading.regularPoly(0, 0, this.boardStyle === 'go' ? Hex.OUTER_RADIUS : Hex.INNER_RADIUS, 6);
         this.cellShading.fill({ color: this.theme.colorEmptyShade });
         this.cellShading.alpha = this.shading;
     }
@@ -106,6 +114,23 @@ export default class Hex extends Container
     {
         // Redraw cell background with theme colors
         this.cellBackgroundGraphics.clear();
+
+        if (this.boardStyle === 'go') {
+            // Plain background patch, slightly overlapping neighbour cells
+            // so the whole board appears as a single filled surface.
+            const path: PointData[] = [];
+
+            for (let i = 0; i < 6; ++i) {
+                path.push(Hex.cornerCoords(i, Hex.OUTER_RADIUS));
+            }
+
+            this.cellBackgroundGraphics.poly(path);
+            this.cellBackgroundGraphics.fill({ color: this.theme.colorEmpty });
+
+            this.redrawCellShading();
+
+            return;
+        }
 
         // background, stroke color
         const outperPath: PointData[] = [];
@@ -144,6 +169,13 @@ export default class Hex extends Container
     updateTheme(theme: Theme): void
     {
         this.theme = theme;
+
+        this.redrawHex();
+    }
+
+    updateBoardStyle(boardStyle: BoardStyle): void
+    {
+        this.boardStyle = boardStyle;
 
         this.redrawHex();
     }

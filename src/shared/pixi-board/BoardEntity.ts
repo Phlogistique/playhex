@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import Hex from './Hex.js';
 import { Coords, Move, parseMove } from '../move-notation/move-notation.js';
 import { Theme } from './BoardTheme.js';
+import { BoardStyle } from './BoardStyle.js';
 
 const PI_6 = Math.PI / 6;
 const PI_3 = Math.PI / 3;
@@ -44,20 +45,39 @@ export class BoardEntity extends Container
     protected listenThemeChange = false;
 
     /**
+     * Whether this entity needs to redraw when GameView board style changed.
+     */
+    protected listenBoardStyleChange = false;
+
+    /**
      * Current theme of the GameView.
      */
     protected theme: Theme;
 
-    initOnce(theme: Theme): void
+    /**
+     * Current board style of the GameView.
+     */
+    protected boardStyle: BoardStyle = 'hex';
+
+    initOnce(theme: Theme, boardStyle: BoardStyle = 'hex'): void
     {
         if (this.initialized) {
             this.updatePosition();
-            this.onThemeUpdated(theme);
+            this.boardStyle = boardStyle;
+
+            if (this.listenThemeChange) {
+                this.theme = theme;
+                this.redrawEntity();
+            } else if (this.listenBoardStyleChange) {
+                this.redrawEntity();
+            }
+
             return;
         }
 
         this.initialized = true;
         this.theme = theme;
+        this.boardStyle = boardStyle;
 
         this.updatePosition();
         this.rotationFixedContainer.addChild(this.draw());
@@ -72,6 +92,22 @@ export class BoardEntity extends Container
 
         this.theme = theme;
 
+        this.redrawEntity();
+    }
+
+    onBoardStyleUpdated(boardStyle: BoardStyle): void
+    {
+        this.boardStyle = boardStyle;
+
+        if (!this.listenBoardStyleChange) {
+            return;
+        }
+
+        this.redrawEntity();
+    }
+
+    private redrawEntity(): void
+    {
         for (const child of this.rotationFixedContainer.removeChildren()) {
             child.destroy();
         }

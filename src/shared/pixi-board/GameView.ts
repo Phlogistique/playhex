@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, PointData, Text, TextStyle } from 'pixi.js';
 import Hex from './Hex.js';
 import { Theme, themes } from './BoardTheme.js';
+import { BoardStyle } from './BoardStyle.js';
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { BoardEntity } from './BoardEntity.js';
 import Stone from './entities/Stone.js';
@@ -100,6 +101,13 @@ type GameViewOptions = {
      * Defaults to true. Set to false when not needed and for better performances.
      */
     interactive: boolean;
+
+    /**
+     * How to render the board.
+     * `hex` is the default hexagonal cells style,
+     * `go` shows a go-style board: triangular grid with stones at intersections.
+     */
+    boardStyle: BoardStyle;
 };
 
 const defaultOptions: GameViewOptions = {
@@ -107,6 +115,7 @@ const defaultOptions: GameViewOptions = {
     displayCoords: false,
     orientation: 11,
     interactive: true,
+    boardStyle: 'hex',
 };
 
 /**
@@ -161,6 +170,12 @@ export default class GameView extends TypedEmitter<GameViewEvents>
      */
     private orientation: number;
 
+    /**
+     * How to render the board.
+     * See GameViewOptions.boardStyle.
+     */
+    private boardStyle: BoardStyle;
+
     private containerElement: null | HTMLElement = null;
 
     /**
@@ -197,6 +212,11 @@ export default class GameView extends TypedEmitter<GameViewEvents>
     private coordsTexts: Text[] = [];
 
     private sidesGraphics: [Graphics, Graphics];
+
+    /**
+     * Triangular grid lines, only drawn with "go" board style.
+     */
+    private gridLinesGraphics: Graphics;
 
     private resizeObserver: null | ResizeObserver = null;
 
@@ -248,6 +268,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.theme = this.gameViewOptions.theme;
         this.displayCoords = this.gameViewOptions.displayCoords;
         this.orientation = this.modOrientation(this.gameViewOptions.orientation);
+        this.boardStyle = this.gameViewOptions.boardStyle;
 
         this.init();
     }
@@ -268,10 +289,12 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.gameContainer.addChild(
             this.createColoredSides(),
             this.createHexesContainer(),
+            this.gridLinesGraphics = new Graphics(),
             this.entityLayersContainer,
             this.coordsContainer = new Container(),
         );
 
+        this.redrawGridLines();
         this.redrawCoords();
     }
 
@@ -384,6 +407,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             }
         }
 
+        this.redrawGridLines();
         this.updateEntitiesTheme();
         this.redrawCoords();
     }
@@ -505,6 +529,75 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.emit('orientationChanged');
     }
 
+    getBoardStyle(): BoardStyle
+    {
+        return this.boardStyle;
+    }
+
+    setBoardStyle(boardStyle: BoardStyle): void
+    {
+        if (boardStyle === this.boardStyle) {
+            return;
+        }
+
+        this.boardStyle = boardStyle;
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                this.hexes[row][col].updateBoardStyle(boardStyle);
+            }
+        }
+
+        this.redrawGridLines();
+        this.updateEntitiesBoardStyle();
+    }
+
+    /**
+     * Draw or redraw the triangular grid of the "go" board style:
+     * lines joining all adjacent cells centers.
+     * Clears the lines when board style is "hex".
+     */
+    private redrawGridLines(): void
+    {
+        this.gridLinesGraphics.clear();
+
+        if (this.boardStyle !== 'go') {
+            return;
+        }
+
+        const neighborOffsets: [number, number][] = [
+            [0, 1], // right
+            [1, 0], // bottom right
+            [1, -1], // bottom left
+        ];
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                const from = Hex.coords(row, col);
+
+                for (const [dRow, dCol] of neighborOffsets) {
+                    const nRow = row + dRow;
+                    const nCol = col + dCol;
+
+                    if (nRow >= this.boardsize || nCol < 0 || nCol >= this.boardsize) {
+                        continue;
+                    }
+
+                    const to = Hex.coords(nRow, nCol);
+
+                    this.gridLinesGraphics.moveTo(from.x, from.y);
+                    this.gridLinesGraphics.lineTo(to.x, to.y);
+                }
+            }
+        }
+
+        this.gridLinesGraphics.stroke({
+            color: this.theme.strokeColor,
+            width: Hex.RADIUS * Hex.PADDING * 2,
+            cap: 'round',
+        });
+    }
+
     getTheme(): Theme
     {
         return this.theme;
@@ -605,7 +698,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         for (let row = 0; row < this.boardsize; ++row) {
             for (let col = 0; col < this.boardsize; ++col) {
-                const hex = new Hex(this.theme);
+                const hex = new Hex(this.theme, 0, this.boardStyle);
 
                 hex.position = Hex.coords(row, col);
 
@@ -875,7 +968,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
     addEntity(entity: BoardEntity, group: string = GameView.DEFAULT_ENTITY_GROUP): BoardEntity
     {
-        entity.initOnce(this.theme);
+        entity.initOnce(this.theme, this.boardStyle);
         entity.updateRotation(this.gameContainer.rotation);
 
         this.getGroup(group).addChild(entity);
@@ -925,6 +1018,19 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         for (const layer of this.entityLayersContainer.children) {
             for (const entity of layer.children) {
                 entity.onThemeUpdated(this.theme);
+            }
+        }
+    }
+
+    /**
+     * Trigger onBoardStyleUpdated() on each entity on this board.
+     * Will redraw for them that needs to.
+     */
+    private updateEntitiesBoardStyle(): void
+    {
+        for (const layer of this.entityLayersContainer.children) {
+            for (const entity of layer.children) {
+                entity.onBoardStyleUpdated(this.boardStyle);
             }
         }
     }

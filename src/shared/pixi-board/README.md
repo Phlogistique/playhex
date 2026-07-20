@@ -129,6 +129,19 @@ gameView.setOrientation(GameView.ORIENTATION_DIAMONDORIENTATION_PORTRAIT_FLAT);
 gameView.setOrientation(1.6);
 ```
 
+- Board style
+
+Board can be rendered with hexagonal cells (default),
+or as a go-style board: a triangular grid with round stones placed at intersections.
+
+``` ts
+const gameView = new GameView(9, { boardStyle: 'go' });
+
+// or change it later
+gameView.setBoardStyle('go');
+gameView.setBoardStyle('hex');
+```
+
 - Highlight sides
 
 It's possible to make sides faded. It is used to show who is currently playing.

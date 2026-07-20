@@ -25,6 +25,7 @@ export default class Stone extends BoardEntity
 
         this.alwaysFlatTop = true;
         this.listenThemeChange = true;
+        this.listenBoardStyleChange = true;
     }
 
     getPlayerIndex(): 0 | 1
@@ -41,7 +42,13 @@ export default class Stone extends BoardEntity
     {
         const g = new Graphics();
 
-        g.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
+        if (this.boardStyle === 'go') {
+            // Round stone placed on a grid intersection.
+            // Radius makes adjacent stones almost touch each other.
+            g.circle(0, 0, Hex.RADIUS * Math.sqrt(3) / 2 * 0.95);
+        } else {
+            g.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
+        }
 
         g.fill({
             color: this.playerIndex === 0

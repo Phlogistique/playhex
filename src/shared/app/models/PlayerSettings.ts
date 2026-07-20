@@ -3,6 +3,7 @@ import Player from './Player.js';
 import { Expose } from '../class-transformer-custom.js';
 import { IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Length, Max, Min, ValidateIf } from 'class-validator';
 import { allShadingPatterns, type ShadingPatternType } from '../../pixi-board/shading-patterns/shading-patterns.js';
+import { allBoardStyles, type BoardStyle } from '../../pixi-board/BoardStyle.js';
 
 export enum MoveSettings {
     /**
@@ -72,6 +73,17 @@ export default class PlayerSettings
     @IsBoolean()
     @Column({ default: false })
     show44dots: boolean = false;
+
+    /**
+     * How to render the board:
+     * "hex" for hexagonal cells (default),
+     * "go" for a go-style board, triangular grid with stones at intersections.
+     */
+    @Expose()
+    @IsOptional()
+    @IsIn(allBoardStyles)
+    @Column({ type: String, length: 16, default: 'hex' })
+    boardStyle: BoardStyle = 'hex';
 
     /**
      * Which shading pattern to use,
