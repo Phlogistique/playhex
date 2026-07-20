@@ -46,6 +46,11 @@ export default class Hex extends Container
      */
     private cellShading: Graphics;
 
+    /**
+     * Stroke width of the lattice line, in go style.
+     */
+    static readonly GO_LINE_WIDTH = Hex.RADIUS * 0.08;
+
     constructor(
         private theme: Theme,
 
@@ -55,6 +60,13 @@ export default class Hex extends Container
          * 0.5 = half-shaded (i.e for tri color shading patterns)...
          */
         private shading: number = 0,
+
+        /**
+         * When true, render the cell go-style: a contiguous background covering
+         * the whole cell with a thin hexagonal lattice line, instead of the
+         * default padded hexagon.
+         */
+        private goStyle: boolean = false,
     ) {
         super();
 
@@ -94,7 +106,10 @@ export default class Hex extends Container
     {
         this.cellShading.clear();
 
-        this.cellShading.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
+        // Go style cells are contiguous, so shade the whole cell to avoid gaps
+        const radius = this.goStyle ? Hex.RADIUS : Hex.INNER_RADIUS;
+
+        this.cellShading.regularPoly(0, 0, radius, 6);
         this.cellShading.fill({ color: this.theme.colorEmptyShade });
         this.cellShading.alpha = this.shading;
     }
@@ -107,6 +122,21 @@ export default class Hex extends Container
         // Redraw cell background with theme colors
         this.cellBackgroundGraphics.clear();
 
+        if (this.goStyle) {
+            this.redrawGoCell();
+        } else {
+            this.redrawHexagonCell();
+        }
+
+        this.redrawCellShading();
+    }
+
+    /**
+     * Default PlayHex look: a padded hexagon drawn over a stroke-colored
+     * hexagon, so the padding forms the grid line between cells.
+     */
+    private redrawHexagonCell(): void
+    {
         // background, stroke color
         const outperPath: PointData[] = [];
 
@@ -126,8 +156,45 @@ export default class Hex extends Container
 
         this.cellBackgroundGraphics.poly(innerPath);
         this.cellBackgroundGraphics.fill({ color: this.theme.colorEmpty });
+    }
 
-        this.redrawCellShading();
+    /**
+     * Go-style look: a full hexagon filling the whole cell (so the board is
+     * contiguous), outlined by a thin line. Adjacent cells share their edges,
+     * so the outlines merge into a single hexagonal lattice, like a goban grid.
+     */
+    private redrawGoCell(): void
+    {
+        const path: PointData[] = [];
+
+        for (let i = 0; i < 6; ++i) {
+            path.push(Hex.cornerCoords(i, Hex.RADIUS));
+        }
+
+        this.cellBackgroundGraphics.poly(path);
+        this.cellBackgroundGraphics.fill({ color: this.theme.colorEmpty });
+
+        this.cellBackgroundGraphics.poly(path);
+        this.cellBackgroundGraphics.stroke({
+            color: this.theme.strokeColor,
+            width: Hex.GO_LINE_WIDTH,
+            alignment: 0.5,
+        });
+    }
+
+    getGoStyle(): boolean
+    {
+        return this.goStyle;
+    }
+
+    setGoStyle(goStyle: boolean): void
+    {
+        if (goStyle === this.goStyle) {
+            return;
+        }
+
+        this.goStyle = goStyle;
+        this.redrawHex();
     }
 
     getCellShading(): number

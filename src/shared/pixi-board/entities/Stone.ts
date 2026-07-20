@@ -20,6 +20,12 @@ export default class Stone extends BoardEntity
     constructor(
         private playerIndex: 0 | 1,
         private faded = false,
+
+        /**
+         * When true, render the stone go-style: a round disc instead of
+         * a hexagon filling the cell.
+         */
+        private goStyle = false,
     ) {
         super();
 
@@ -41,18 +47,26 @@ export default class Stone extends BoardEntity
     {
         const g = new Graphics();
 
+        const color = this.playerIndex === 0
+            ? this.theme.colorA
+            : this.theme.colorB
+        ;
+        const alpha = this.faded
+            ? 0.5
+            : 1
+        ;
+
+        if (this.goStyle) {
+            // A round disc slightly smaller than the cell, like a go stone
+            g.circle(0, 0, Hex.INNER_RADIUS * 0.82);
+            g.fill({ color, alpha });
+
+            return g;
+        }
+
         g.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
 
-        g.fill({
-            color: this.playerIndex === 0
-                ? this.theme.colorA
-                : this.theme.colorB
-            ,
-            alpha: this.faded
-                ? 0.5
-                : 1
-            ,
-        });
+        g.fill({ color, alpha });
 
         g.rotation = Math.PI / 6;
 

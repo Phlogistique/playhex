@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, PointData, Text, TextStyle } from 'pixi.js';
 import Hex from './Hex.js';
 import { Theme, themes } from './BoardTheme.js';
+import { BoardStyle } from './BoardStyle.js';
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { BoardEntity } from './BoardEntity.js';
 import Stone from './entities/Stone.js';
@@ -100,6 +101,12 @@ type GameViewOptions = {
      * Defaults to true. Set to false when not needed and for better performances.
      */
     interactive: boolean;
+
+    /**
+     * How the board and stones are rendered.
+     * Defaults to 'hexagons', the standard PlayHex look.
+     */
+    boardStyle: BoardStyle;
 };
 
 const defaultOptions: GameViewOptions = {
@@ -107,6 +114,7 @@ const defaultOptions: GameViewOptions = {
     displayCoords: false,
     orientation: 11,
     interactive: true,
+    boardStyle: 'hexagons',
 };
 
 /**
@@ -160,6 +168,11 @@ export default class GameView extends TypedEmitter<GameViewEvents>
      * See GameView.ORIENTATION_* constants for most used values.
      */
     private orientation: number;
+
+    /**
+     * How the board and stones are rendered.
+     */
+    private boardStyle: BoardStyle;
 
     private containerElement: null | HTMLElement = null;
 
@@ -248,6 +261,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.theme = this.gameViewOptions.theme;
         this.displayCoords = this.gameViewOptions.displayCoords;
         this.orientation = this.modOrientation(this.gameViewOptions.orientation);
+        this.boardStyle = this.gameViewOptions.boardStyle;
 
         this.init();
     }
@@ -517,6 +531,37 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.redrawAfterThemeChanged();
     }
 
+    getBoardStyle(): BoardStyle
+    {
+        return this.boardStyle;
+    }
+
+    /**
+     * Switch between board rendering styles (hexagons or go-style).
+     * Redraws all cells and re-renders existing stones with the new style.
+     */
+    setBoardStyle(boardStyle: BoardStyle): void
+    {
+        if (boardStyle === this.boardStyle) {
+            return;
+        }
+
+        this.boardStyle = boardStyle;
+
+        const goStyle = boardStyle === 'go';
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                this.hexes[row][col].setGoStyle(goStyle);
+            }
+        }
+
+        // Re-render existing stones so they match the new style
+        for (const [move, stone] of Object.entries(this.stones)) {
+            this.setStone(move as Move, stone.getPlayerIndex(), stone.isFaded());
+        }
+    }
+
     /**
      * Rescale the game board to fit in the container,
      * depending on board orientation.
@@ -605,7 +650,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         for (let row = 0; row < this.boardsize; ++row) {
             for (let col = 0; col < this.boardsize; ++col) {
-                const hex = new Hex(this.theme);
+                const hex = new Hex(this.theme, 0, this.boardStyle === 'go');
 
                 hex.position = Hex.coords(row, col);
 
@@ -845,7 +890,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         }
 
         if (byPlayerIndex !== null) {
-            this.stones[move] = new Stone(byPlayerIndex, faded);
+            this.stones[move] = new Stone(byPlayerIndex, faded, this.boardStyle === 'go');
             this.stones[move].setCoords(parseMove(move));
             this.addEntity(this.stones[move], GameView.STONE_ENTITY_GROUP);
         }

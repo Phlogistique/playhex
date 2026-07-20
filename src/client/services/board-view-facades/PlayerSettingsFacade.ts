@@ -89,6 +89,7 @@ export class PlayerSettingsFacade
         };
 
         this.gameView.setDisplayCoords(settings.showCoords);
+        this.gameView.setBoardStyle(settings.boardStyle);
         this.anchor44Facade.show44Anchors(settings.show44dots);
         this.shadingPatternFacade.setShadingPattern(settings.boardShadingPattern, settings.boardShadingPatternIntensity, settings.boardShadingPatternOption);
         this.autoOrientationFacade.setPreferredOrientations({
