@@ -1,6 +1,7 @@
 # Update the authenticated player's settings. Requires authentication.
 # All fields are optional; only send the ones you want to change.
 # moveSettings values: 0 = premove, 1 = send immediately, 2 = must confirm
+# boardStyle values: "hex" (default) or "go" (stones at intersections of a triangular grid)
 
 PATCH /api/player-settings
 Content-Type: application/json
@@ -13,6 +14,7 @@ Content-Type: application/json
     "orientationPortrait": 9,
     "showCoords": false,
     "show44dots": false,
+    "boardStyle": "hex",
     "boardShadingPattern": null,
     "boardShadingPatternOption": null,
     "boardShadingPatternIntensity": 0.5,

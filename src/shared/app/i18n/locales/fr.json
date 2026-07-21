@@ -248,6 +248,13 @@
     },
     "preview": "Aperçu",
     "show_44_dots": "Afficher des points sur les cases en 4-4",
+    "board_style": {
+        "title": "Style de plateau",
+        "styles": {
+            "hex": "Hexagones",
+            "go": "Style go (pierres sur les intersections)"
+        }
+    },
     "short_time_unit": {
         "day": "j",
         "hour": "h",

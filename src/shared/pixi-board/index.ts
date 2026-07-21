@@ -6,6 +6,8 @@ export { BoardEntity } from './BoardEntity.js';
 export { colorAverage, lighten, darken } from './colorUtils.js';
 export type { Theme } from './BoardTheme.js';
 export { themes } from './BoardTheme.js';
+export type { BoardStyle } from './BoardStyle.js';
+export { allBoardStyles } from './BoardStyle.js';
 
 // Entities
 export { default as Anchor44Mark } from './entities/Anchor44Mark.js';

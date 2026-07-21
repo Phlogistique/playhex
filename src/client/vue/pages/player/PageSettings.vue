@@ -11,7 +11,7 @@ import { injectHead, useSeoMeta } from '@unhead/vue';
 import { InputValidation, toInputClass } from '../../../vue/formUtils.js';
 import { authChangePassword } from '../../../apiClient.js';
 import { availableLocales, getQuickLocales, setLocale, getPlayerMissingLocale } from '../../../../shared/app/i18n/index.js';
-import { allShadingPatterns } from '@playhex/pixi-board';
+import { allShadingPatterns, allBoardStyles } from '@playhex/pixi-board';
 import i18n, { t } from 'i18next';
 import { MoveSettings } from '../../../../shared/app/models/index.js';
 import { simulateTargetPseudoClassHandler } from '../../../services/simulateTargetPseudoClassHandler.js';
@@ -364,6 +364,19 @@ const isNotificationSupported = typeof Notification !== 'undefined';
                 <div class="form-check form-switch my-3">
                     <input class="form-check-input" type="checkbox" v-model="playerSettings.show44dots" role="switch" id="show-board-dots">
                     <label class="form-check-label" for="show-board-dots"><IconDot /> {{ $t('show_44_dots') }}</label>
+                </div>
+
+                <div class="mb-3 row">
+                    <label for="board-style-select" class="col-sm-4 col-md-3 col-form-label">{{ $t('board_style.title') }}</label>
+                    <div class="col-sm-8 col-md-6">
+                        <select class="form-select" v-model="playerSettings.boardStyle" id="board-style-select">
+                            <option
+                                v-for="boardStyle in allBoardStyles"
+                                :key="boardStyle"
+                                :value="boardStyle"
+                            >{{ $t(`board_style.styles.${boardStyle}`) }}</option>
+                        </select>
+                    </div>
                 </div>
             </template>
         </div>

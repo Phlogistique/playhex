@@ -27,4 +27,17 @@ describe('GameView visual regression', () => {
             cy.compareSnapshot('red-and-blue-stones');
         });
     });
+
+    it('renders go-style board with stones at intersections', () => {
+        cy.window().then(async ({ mountGameView }) => {
+            const gameView = new GameView(3, { boardStyle: 'go' });
+
+            gameView.setStone('b2', 0);
+            gameView.setStone('c3', 1);
+
+            await mountGameView(gameView);
+
+            cy.compareSnapshot('go-style-board');
+        });
+    });
 });

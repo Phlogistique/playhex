@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, PointData, Text, TextStyle } from 'pixi.js';
 import Hex from './Hex.js';
 import { Theme, themes } from './BoardTheme.js';
+import { BoardStyle, goStoneColors } from './BoardStyle.js';
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { BoardEntity } from './BoardEntity.js';
 import Stone from './entities/Stone.js';
@@ -100,6 +101,13 @@ type GameViewOptions = {
      * Defaults to true. Set to false when not needed and for better performances.
      */
     interactive: boolean;
+
+    /**
+     * How to render the board.
+     * `hex` is the default hexagonal cells style,
+     * `go` shows a go-style board: triangular grid with stones at intersections.
+     */
+    boardStyle: BoardStyle;
 };
 
 const defaultOptions: GameViewOptions = {
@@ -107,6 +115,7 @@ const defaultOptions: GameViewOptions = {
     displayCoords: false,
     orientation: 11,
     interactive: true,
+    boardStyle: 'hex',
 };
 
 /**
@@ -161,6 +170,12 @@ export default class GameView extends TypedEmitter<GameViewEvents>
      */
     private orientation: number;
 
+    /**
+     * How to render the board.
+     * See GameViewOptions.boardStyle.
+     */
+    private boardStyle: BoardStyle;
+
     private containerElement: null | HTMLElement = null;
 
     /**
@@ -197,6 +212,11 @@ export default class GameView extends TypedEmitter<GameViewEvents>
     private coordsTexts: Text[] = [];
 
     private sidesGraphics: [Graphics, Graphics];
+
+    /**
+     * Triangular grid lines, only drawn with "go" board style.
+     */
+    private gridLinesGraphics: Graphics;
 
     private resizeObserver: null | ResizeObserver = null;
 
@@ -248,6 +268,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.theme = this.gameViewOptions.theme;
         this.displayCoords = this.gameViewOptions.displayCoords;
         this.orientation = this.modOrientation(this.gameViewOptions.orientation);
+        this.boardStyle = this.gameViewOptions.boardStyle;
 
         this.init();
     }
@@ -268,10 +289,12 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.gameContainer.addChild(
             this.createColoredSides(),
             this.createHexesContainer(),
+            this.gridLinesGraphics = new Graphics(),
             this.entityLayersContainer,
             this.coordsContainer = new Container(),
         );
 
+        this.redrawGridLines();
         this.redrawCoords();
     }
 
@@ -384,6 +407,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             }
         }
 
+        this.redrawGridLines();
         this.updateEntitiesTheme();
         this.redrawCoords();
     }
@@ -505,6 +529,79 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         this.emit('orientationChanged');
     }
 
+    getBoardStyle(): BoardStyle
+    {
+        return this.boardStyle;
+    }
+
+    setBoardStyle(boardStyle: BoardStyle): void
+    {
+        if (boardStyle === this.boardStyle) {
+            return;
+        }
+
+        this.boardStyle = boardStyle;
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                this.hexes[row][col].updateBoardStyle(boardStyle);
+            }
+        }
+
+        this.redrawColoredSides();
+        this.redrawGridLines();
+        this.redrawCoords();
+        this.updateEntitiesBoardStyle();
+        this.autoResize();
+    }
+
+    /**
+     * Draw or redraw the triangular grid of the "go" board style:
+     * lines joining all adjacent cells centers.
+     * Clears the lines when board style is "hex".
+     */
+    private redrawGridLines(): void
+    {
+        this.gridLinesGraphics.clear();
+
+        if (this.boardStyle !== 'go') {
+            return;
+        }
+
+        const neighborOffsets: [number, number][] = [
+            [0, 1], // right
+            [1, 0], // bottom right
+            [1, -1], // bottom left
+        ];
+
+        for (let row = 0; row < this.boardsize; ++row) {
+            for (let col = 0; col < this.boardsize; ++col) {
+                const from = Hex.coords(row, col);
+
+                for (const [dRow, dCol] of neighborOffsets) {
+                    const nRow = row + dRow;
+                    const nCol = col + dCol;
+
+                    if (nRow >= this.boardsize || nCol < 0 || nCol >= this.boardsize) {
+                        continue;
+                    }
+
+                    const to = Hex.coords(nRow, nCol);
+
+                    this.gridLinesGraphics.moveTo(from.x, from.y);
+                    this.gridLinesGraphics.lineTo(to.x, to.y);
+                }
+            }
+        }
+
+        this.gridLinesGraphics.stroke({
+            color: this.theme.textColor,
+            alpha: 0.5,
+            width: 1.5,
+            cap: 'round',
+        });
+    }
+
     getTheme(): Theme
     {
         return this.theme;
@@ -568,16 +665,23 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         // Add margin to prevent cells to be slightly cropped.
         // Depending on orientation, either width or height margin is needed.
-        if ([1, 2, 3].includes(this.getOrientation() % 6)) {
+        if (this.boardStyle === 'go') {
+            // Side bands are mitered and extend past the acute board corners,
+            // margin is needed in both dimensions.
+            boxWidth += Hex.RADIUS * 3.5;
+            boxHeight += Hex.RADIUS * 3.5;
+        } else if ([1, 2, 3].includes(this.getOrientation() % 6)) {
             boxWidth += 30;
         } else {
             boxHeight += 30;
         }
 
-        // Add margin to display coords around the board
+        // Add margin to display coords around the board.
+        // Go board style needs more, coords are placed further away.
         if (this.displayCoords) {
-            boxWidth += Hex.RADIUS * 1.8;
-            boxHeight += Hex.RADIUS * 1.8;
+            const coordsMargin = Hex.RADIUS * (this.boardStyle === 'go' ? 2.6 : 1.8);
+            boxWidth += coordsMargin;
+            boxHeight += coordsMargin;
         }
 
         const scale = min(
@@ -605,7 +709,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         for (let row = 0; row < this.boardsize; ++row) {
             for (let col = 0; col < this.boardsize; ++col) {
-                const hex = new Hex(this.theme);
+                const hex = new Hex(this.theme, 0, this.boardStyle);
 
                 hex.position = Hex.coords(row, col);
 
@@ -657,6 +761,130 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         // Initialize both sides at class level to change them later (light on/off)
         this.sidesGraphics = [new Graphics(), new Graphics()];
 
+        // Add both sides into a single container
+        const sidesContainer = new Container();
+        sidesContainer.addChild(...this.sidesGraphics);
+
+        this.redrawColoredSides();
+
+        return sidesContainer;
+    }
+
+    private redrawColoredSides(): void
+    {
+        this.sidesGraphics[0].clear();
+        this.sidesGraphics[1].clear();
+
+        if (this.boardStyle === 'go') {
+            this.drawGoSides();
+        } else {
+            this.drawHexSides();
+        }
+    }
+
+    /**
+     * Go board style sides:
+     * straight black and white bands along the 4 edges of the grid parallelogram,
+     * matching the stone colors: black side for first player, white for second.
+     */
+    private drawGoSides(): void
+    {
+        const lastI = this.boardsize - 1;
+
+        const corners: PointData[] = [
+            Hex.coords(0, 0),
+            Hex.coords(0, lastI),
+            Hex.coords(lastI, lastI),
+            Hex.coords(lastI, 0),
+        ];
+
+        const center: PointData = {
+            x: (corners[0].x + corners[2].x) / 2,
+            y: (corners[0].y + corners[2].y) / 2,
+        };
+
+        /**
+         * Distance between a grid border line and its band center line.
+         * Far enough from the grid so stones placed on border intersections
+         * do not overlap the bands.
+         */
+        const bandDistance = Hex.RADIUS * 1.25;
+
+        /**
+         * Thickness of a band
+         */
+        const bandWidth = Hex.RADIUS * 0.5;
+
+        /**
+         * Thickness of a band outline, same as stone outlines
+         */
+        const outlineWidth = 2;
+
+        /**
+         * Unit normal of edge from -> to, pointing away from board center
+         */
+        const outwardNormal = (from: PointData, to: PointData): PointData => {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const length = sqrt(dx * dx + dy * dy);
+            let nx = dy / length;
+            let ny = -dx / length;
+
+            const midX = (from.x + to.x) / 2 - center.x;
+            const midY = (from.y + to.y) / 2 - center.y;
+
+            if (nx * midX + ny * midY < 0) {
+                nx = -nx;
+                ny = -ny;
+            }
+
+            return { x: nx, y: ny };
+        };
+
+        // Offset each corner outward, along the miter of its 2 adjacent edges,
+        // so that adjacent bands exactly meet at corners
+        const miteredCorners = corners.map((corner, i) => {
+            const previous = corners[(i + 3) % 4];
+            const next = corners[(i + 1) % 4];
+
+            const n1 = outwardNormal(previous, corner);
+            const n2 = outwardNormal(corner, next);
+            const dot = n1.x * n2.x + n1.y * n2.y;
+
+            return {
+                x: corner.x + bandDistance * (n1.x + n2.x) / (1 + dot),
+                y: corner.y + bandDistance * (n1.y + n2.y) / (1 + dot),
+            };
+        });
+
+        // Sides: top and bottom for first player (black), right and left for second player (white)
+        const addBandsPaths = (playerIndex: 0 | 1): Graphics => {
+            const g = this.sidesGraphics[playerIndex];
+
+            for (const i of [playerIndex, playerIndex + 2]) {
+                const from = miteredCorners[i];
+                const to = miteredCorners[(i + 1) % 4];
+
+                g.moveTo(from.x, from.y);
+                g.lineTo(to.x, to.y);
+            }
+
+            return g;
+        };
+
+        addBandsPaths(0).stroke({ color: goStoneColors.blackOutline, width: bandWidth + 2 * outlineWidth, cap: 'round' });
+        addBandsPaths(0).stroke({ color: goStoneColors.black, width: bandWidth, cap: 'round' });
+
+        addBandsPaths(1).stroke({ color: goStoneColors.whiteOutline, width: bandWidth + 2 * outlineWidth, cap: 'round' });
+        addBandsPaths(1).stroke({ color: goStoneColors.white, width: bandWidth, cap: 'round' });
+    }
+
+    /**
+     * Default hex board style sides:
+     * colored borders following the hexagonal cells of the 4 board sides.
+     */
+    private drawHexSides(): void
+    {
         let g: Graphics;
         const to = (a: PointData, b: PointData = { x: 0, y: 0 }, c: PointData = { x: 0, y: 0 }) => g.lineTo(a.x + b.x + c.x, a.y + b.y + c.y);
         const m = (a: PointData, b: PointData = { x: 0, y: 0 }) => g.moveTo(a.x + b.x, a.y + b.y);
@@ -734,12 +962,6 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         to(boardMiddle);
 
         g.fill();
-
-        // Add both sides into a single container
-        const sidesContainer = new Container();
-        sidesContainer.addChild(...this.sidesGraphics);
-
-        return sidesContainer;
     }
 
     getDisplayCoords(): boolean
@@ -796,14 +1018,18 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             return text;
         };
 
+        // On go board style, coords are placed further away
+        // to not overlap the side bands.
+        const coordsOffset = this.boardStyle === 'go' ? 1.4 : 1;
+
         for (let i = 0; i < this.boardsize; ++i) {
             const number = rowToNumber(i);
-            container.addChild(createText(number, i, -1));
-            container.addChild(createText(number, i, this.boardsize));
+            container.addChild(createText(number, i, -coordsOffset));
+            container.addChild(createText(number, i, this.boardsize - 1 + coordsOffset));
 
             const letter = colToLetter(i);
-            container.addChild(createText(letter, -1, i));
-            container.addChild(createText(letter, this.boardsize, i));
+            container.addChild(createText(letter, -coordsOffset, i));
+            container.addChild(createText(letter, this.boardsize - 1 + coordsOffset, i));
         }
 
         this.updateCoordsTextsOrientation();
@@ -875,7 +1101,7 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
     addEntity(entity: BoardEntity, group: string = GameView.DEFAULT_ENTITY_GROUP): BoardEntity
     {
-        entity.initOnce(this.theme);
+        entity.initOnce(this.theme, this.boardStyle);
         entity.updateRotation(this.gameContainer.rotation);
 
         this.getGroup(group).addChild(entity);
@@ -925,6 +1151,19 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         for (const layer of this.entityLayersContainer.children) {
             for (const entity of layer.children) {
                 entity.onThemeUpdated(this.theme);
+            }
+        }
+    }
+
+    /**
+     * Trigger onBoardStyleUpdated() on each entity on this board.
+     * Will redraw for them that needs to.
+     */
+    private updateEntitiesBoardStyle(): void
+    {
+        for (const layer of this.entityLayersContainer.children) {
+            for (const entity of layer.children) {
+                entity.onBoardStyleUpdated(this.boardStyle);
             }
         }
     }

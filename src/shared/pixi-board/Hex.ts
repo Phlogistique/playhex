@@ -1,5 +1,6 @@
-import { Container, DestroyOptions, Graphics, PointData } from 'pixi.js';
+import { Container, DestroyOptions, Graphics, PointData, Polygon } from 'pixi.js';
 import { Theme } from './BoardTheme.js';
+import { BoardStyle } from './BoardStyle.js';
 
 const { PI, cos, sin, sqrt } = Math;
 const SQRT3 = sqrt(3);
@@ -55,6 +56,13 @@ export default class Hex extends Container
          * 0.5 = half-shaded (i.e for tri color shading patterns)...
          */
         private shading: number = 0,
+
+        /**
+         * How to render this cell.
+         * `hex` shows a hexagonal cell with a border,
+         * `go` shows a plain background patch, grid lines are drawn at board level.
+         */
+        private boardStyle: BoardStyle = 'hex',
     ) {
         super();
 
@@ -67,6 +75,17 @@ export default class Hex extends Container
         this.init();
 
         this.eventMode = 'static';
+
+        // Explicit hit area, so cell stays clickable
+        // even when nothing is drawn on it ("go" board style)
+        const hitAreaPath: number[] = [];
+
+        for (let i = 0; i < 6; ++i) {
+            const { x, y } = Hex.cornerCoords(i, Hex.RADIUS);
+            hitAreaPath.push(x, y);
+        }
+
+        this.hitArea = new Polygon(hitAreaPath);
     }
 
     private init(): void
@@ -94,7 +113,7 @@ export default class Hex extends Container
     {
         this.cellShading.clear();
 
-        this.cellShading.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
+        this.cellShading.regularPoly(0, 0, this.boardStyle === 'go' ? Hex.OUTER_RADIUS : Hex.INNER_RADIUS, 6);
         this.cellShading.fill({ color: this.theme.colorEmptyShade });
         this.cellShading.alpha = this.shading;
     }
@@ -106,6 +125,14 @@ export default class Hex extends Container
     {
         // Redraw cell background with theme colors
         this.cellBackgroundGraphics.clear();
+
+        if (this.boardStyle === 'go') {
+            // No cell background: the board is transparent,
+            // only grid lines are shown, drawn at board level.
+            this.redrawCellShading();
+
+            return;
+        }
 
         // background, stroke color
         const outperPath: PointData[] = [];
@@ -144,6 +171,13 @@ export default class Hex extends Container
     updateTheme(theme: Theme): void
     {
         this.theme = theme;
+
+        this.redrawHex();
+    }
+
+    updateBoardStyle(boardStyle: BoardStyle): void
+    {
+        this.boardStyle = boardStyle;
 
         this.redrawHex();
     }

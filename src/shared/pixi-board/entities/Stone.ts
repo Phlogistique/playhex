@@ -1,6 +1,7 @@
 import { Container, Graphics, Ticker } from 'pixi.js';
 import { BoardEntity } from '../BoardEntity.js';
 import Hex from '../Hex.js';
+import { goStoneColors, goStoneRadius } from '../BoardStyle.js';
 
 const animationDuration = 50;
 const animationCurve = Array(animationDuration).fill(0).map((_, i) => {
@@ -25,6 +26,7 @@ export default class Stone extends BoardEntity
 
         this.alwaysFlatTop = true;
         this.listenThemeChange = true;
+        this.listenBoardStyleChange = true;
     }
 
     getPlayerIndex(): 0 | 1
@@ -40,6 +42,32 @@ export default class Stone extends BoardEntity
     protected override draw(): Container
     {
         const g = new Graphics();
+        const alpha = this.faded ? 0.5 : 1;
+
+        if (this.boardStyle === 'go') {
+            // Round black or white stone placed on a grid intersection,
+            // outlined to stay visible on both light and dark backgrounds.
+            g.circle(0, 0, goStoneRadius(Hex.RADIUS));
+
+            g.fill({
+                color: this.playerIndex === 0
+                    ? goStoneColors.black
+                    : goStoneColors.white
+                ,
+                alpha,
+            });
+
+            g.stroke({
+                color: this.playerIndex === 0
+                    ? goStoneColors.blackOutline
+                    : goStoneColors.whiteOutline
+                ,
+                width: 2,
+                alpha,
+            });
+
+            return g;
+        }
 
         g.regularPoly(0, 0, Hex.INNER_RADIUS, 6);
 
@@ -48,10 +76,7 @@ export default class Stone extends BoardEntity
                 ? this.theme.colorA
                 : this.theme.colorB
             ,
-            alpha: this.faded
-                ? 0.5
-                : 1
-            ,
+            alpha,
         });
 
         g.rotation = Math.PI / 6;
