@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, PointData, Text, TextStyle } from 'pixi.js';
 import Hex from './Hex.js';
 import { Theme, themes } from './BoardTheme.js';
-import { BoardStyle } from './BoardStyle.js';
+import { BoardStyle, goStoneColors } from './BoardStyle.js';
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { BoardEntity } from './BoardEntity.js';
 import Stone from './entities/Stone.js';
@@ -550,7 +550,9 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         this.redrawColoredSides();
         this.redrawGridLines();
+        this.redrawCoords();
         this.updateEntitiesBoardStyle();
+        this.autoResize();
     }
 
     /**
@@ -663,16 +665,23 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
         // Add margin to prevent cells to be slightly cropped.
         // Depending on orientation, either width or height margin is needed.
-        if ([1, 2, 3].includes(this.getOrientation() % 6)) {
+        if (this.boardStyle === 'go') {
+            // Side bands are mitered and extend past the acute board corners,
+            // margin is needed in both dimensions.
+            boxWidth += Hex.RADIUS * 3.5;
+            boxHeight += Hex.RADIUS * 3.5;
+        } else if ([1, 2, 3].includes(this.getOrientation() % 6)) {
             boxWidth += 30;
         } else {
             boxHeight += 30;
         }
 
-        // Add margin to display coords around the board
+        // Add margin to display coords around the board.
+        // Go board style needs more, coords are placed further away.
         if (this.displayCoords) {
-            boxWidth += Hex.RADIUS * 1.8;
-            boxHeight += Hex.RADIUS * 1.8;
+            const coordsMargin = Hex.RADIUS * (this.boardStyle === 'go' ? 2.6 : 1.8);
+            boxWidth += coordsMargin;
+            boxHeight += coordsMargin;
         }
 
         const scale = min(
@@ -775,7 +784,8 @@ export default class GameView extends TypedEmitter<GameViewEvents>
 
     /**
      * Go board style sides:
-     * straight bands along the 4 edges of the grid parallelogram.
+     * straight black and white bands along the 4 edges of the grid parallelogram,
+     * matching the stone colors: black side for first player, white for second.
      */
     private drawGoSides(): void
     {
@@ -794,15 +804,21 @@ export default class GameView extends TypedEmitter<GameViewEvents>
         };
 
         /**
-         * Distance between a grid border line and its colored band center line.
-         * Close enough to the grid to not overlap displayed coords.
+         * Distance between a grid border line and its band center line.
+         * Far enough from the grid so stones placed on border intersections
+         * do not overlap the bands.
          */
-        const bandDistance = Hex.RADIUS * 0.8;
+        const bandDistance = Hex.RADIUS * 1.25;
 
         /**
-         * Thickness of a colored band
+         * Thickness of a band
          */
         const bandWidth = Hex.RADIUS * 0.5;
+
+        /**
+         * Thickness of a band outline, same as stone outlines
+         */
+        const outlineWidth = 2;
 
         /**
          * Unit normal of edge from -> to, pointing away from board center
@@ -841,18 +857,26 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             };
         });
 
-        // Sides: top and bottom for first player, right and left for second player
-        for (let i = 0; i < 4; ++i) {
-            const g = this.sidesGraphics[i % 2];
-            const from = miteredCorners[i];
-            const to = miteredCorners[(i + 1) % 4];
+        // Sides: top and bottom for first player (black), right and left for second player (white)
+        const addBandsPaths = (playerIndex: 0 | 1): Graphics => {
+            const g = this.sidesGraphics[playerIndex];
 
-            g.moveTo(from.x, from.y);
-            g.lineTo(to.x, to.y);
-        }
+            for (const i of [playerIndex, playerIndex + 2]) {
+                const from = miteredCorners[i];
+                const to = miteredCorners[(i + 1) % 4];
 
-        this.sidesGraphics[0].stroke({ color: this.theme.colorA, width: bandWidth, cap: 'round' });
-        this.sidesGraphics[1].stroke({ color: this.theme.colorB, width: bandWidth, cap: 'round' });
+                g.moveTo(from.x, from.y);
+                g.lineTo(to.x, to.y);
+            }
+
+            return g;
+        };
+
+        addBandsPaths(0).stroke({ color: goStoneColors.blackOutline, width: bandWidth + 2 * outlineWidth, cap: 'round' });
+        addBandsPaths(0).stroke({ color: goStoneColors.black, width: bandWidth, cap: 'round' });
+
+        addBandsPaths(1).stroke({ color: goStoneColors.whiteOutline, width: bandWidth + 2 * outlineWidth, cap: 'round' });
+        addBandsPaths(1).stroke({ color: goStoneColors.white, width: bandWidth, cap: 'round' });
     }
 
     /**
@@ -994,14 +1018,18 @@ export default class GameView extends TypedEmitter<GameViewEvents>
             return text;
         };
 
+        // On go board style, coords are placed further away
+        // to not overlap the side bands.
+        const coordsOffset = this.boardStyle === 'go' ? 1.4 : 1;
+
         for (let i = 0; i < this.boardsize; ++i) {
             const number = rowToNumber(i);
-            container.addChild(createText(number, i, -1));
-            container.addChild(createText(number, i, this.boardsize));
+            container.addChild(createText(number, i, -coordsOffset));
+            container.addChild(createText(number, i, this.boardsize - 1 + coordsOffset));
 
             const letter = colToLetter(i);
-            container.addChild(createText(letter, -1, i));
-            container.addChild(createText(letter, this.boardsize, i));
+            container.addChild(createText(letter, -coordsOffset, i));
+            container.addChild(createText(letter, this.boardsize - 1 + coordsOffset, i));
         }
 
         this.updateCoordsTextsOrientation();
